@@ -37,8 +37,5 @@ exports.sendMessage = async (req, res) => {
     text: text.trim()
   });
 
-  const io = req.app.get('io');
-  io.to(ticket._id.toString()).emit('newMessage', message);
-
   res.status(201).json(message);
 };

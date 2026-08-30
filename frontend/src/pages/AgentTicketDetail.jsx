@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
@@ -16,25 +15,24 @@ const AgentTicketDetail = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
-  const socketRef = useRef(null);
+  const pollRef = useRef(null);
 
-  const loadData = async () => {
+  const loadData = async (syncEdit = false) => {
     const [tRes, mRes] = await Promise.all([
       api.get(`/tickets/${id}`), api.get(`/messages/${id}`)
     ]);
     setTicket(tRes.data);
-    setEdit({ category: tRes.data.category, priority: tRes.data.priority, aiSummary: tRes.data.aiSummary });
+    if (syncEdit) {
+      setEdit({ category: tRes.data.category, priority: tRes.data.priority, aiSummary: tRes.data.aiSummary });
+    }
     setMessages(mRes.data);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadData();
-    socketRef.current = io('http://localhost:5000');
-    socketRef.current.emit('joinTicket', id);
-    socketRef.current.on('newMessage', (msg) => setMessages((p) => [...p, msg]));
-    socketRef.current.on('statusChanged', ({ status }) => setTicket((p) => p ? { ...p, status } : p));
-    return () => socketRef.current.disconnect();
+    loadData(true);
+    pollRef.current = setInterval(() => loadData(false), 3000);
+    return () => clearInterval(pollRef.current);
   }, [id]);
 
   const assignToMe = async () => {
@@ -75,6 +73,7 @@ const AgentTicketDetail = () => {
     if (!text.trim()) return;
     await api.post(`/messages/${id}`, { text });
     setText('');
+    loadData(false);
   };
 
   if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
@@ -107,11 +106,11 @@ const AgentTicketDetail = () => {
 
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="font-semibold text-gray-800 mb-3">
-  AI Suggestion (Editable)
-  {edit.aiSummary?.includes('AI triage unavailable') && (
-    <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Needs manual entry</span>
-  )}
-</h3>
+            AI Suggestion (Editable)
+            {edit.aiSummary?.includes('AI triage unavailable') && (
+              <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Needs manual entry</span>
+            )}
+          </h3>
           <label className="block text-sm text-gray-600 mb-1">Category</label>
           <input value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })}
             disabled={isResolved} className="w-full mb-3 px-3 py-2 border rounded disabled:bg-gray-100" />

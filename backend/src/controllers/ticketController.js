@@ -107,9 +107,5 @@ exports.updateTicket = async (req, res) => {
   if (resolutionNote) ticket.resolutionNote = resolutionNote;
 
   await ticket.save();
-
-  const io = req.app.get('io');
-  io.to(ticket._id.toString()).emit('statusChanged', { ticketId: ticket._id, status: ticket.status });
-
   res.json(ticket);
 };

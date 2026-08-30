@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
@@ -12,7 +11,7 @@ const CustomerTicketDetail = () => {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
-  const socketRef = useRef(null);
+  const pollRef = useRef(null);
 
   const loadData = async () => {
     const [tRes, mRes] = await Promise.all([
@@ -26,15 +25,8 @@ const CustomerTicketDetail = () => {
 
   useEffect(() => {
     loadData();
-    socketRef.current = io('http://localhost:5000');
-    socketRef.current.emit('joinTicket', id);
-    socketRef.current.on('newMessage', (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-    socketRef.current.on('statusChanged', ({ status }) => {
-      setTicket((prev) => prev ? { ...prev, status } : prev);
-    });
-    return () => socketRef.current.disconnect();
+    pollRef.current = setInterval(loadData, 3000);
+    return () => clearInterval(pollRef.current);
   }, [id]);
 
   const sendMessage = async (e) => {
@@ -42,6 +34,7 @@ const CustomerTicketDetail = () => {
     if (!text.trim()) return;
     await api.post(`/messages/${id}`, { text });
     setText('');
+    loadData();
   };
 
   if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
@@ -50,7 +43,7 @@ const CustomerTicketDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
         <div className="bg-white p-6 rounded-lg shadow mb-4">
           <p className="text-xs text-gray-400">{ticket.ticketNumber}</p>
           <h2 className="text-xl font-bold text-gray-800 mb-2">{ticket.subject}</h2>
@@ -61,16 +54,16 @@ const CustomerTicketDetail = () => {
           </div>
           <p className="text-gray-600 text-sm mb-3">{ticket.description}</p>
           {ticket.aiSummary && (
-  ticket.aiSummary.includes('AI triage unavailable') ? (
-    <div className="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-800">
-      <strong>Pending Manual Review:</strong> Our support team will review and categorize your ticket shortly.
-    </div>
-  ) : (
-    <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-      <strong>AI Summary:</strong> {ticket.aiSummary}
-    </div>
-  )
-)}
+            ticket.aiSummary.includes('AI triage unavailable') ? (
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-800">
+                <strong>Pending Manual Review:</strong> Our support team will review and categorize your ticket shortly.
+              </div>
+            ) : (
+              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                <strong>AI Summary:</strong> {ticket.aiSummary}
+              </div>
+            )
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow">
