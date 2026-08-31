@@ -3,11 +3,18 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./src/config/db');
 
-connectDB();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ message: 'Database connection failed' });
+  }
+});
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -17,7 +24,9 @@ app.use('/api/messages', require('./src/routes/messageRoutes'));
 
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  connectDB().then(() => {
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  });
 }
 
 module.exports = app;
