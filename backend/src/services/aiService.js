@@ -40,7 +40,11 @@ Description: ${description}`
     console.error('AI triage failed:', err.message);
     return {
       success: false,
-      data: { category: 'General', priority: 'Medium', summary: 'AI triage unavailable — manual review needed.' }
+      data: {
+        category: 'General',
+        priority: 'Medium',
+        summary: 'AI triage unavailable — manual review needed.'
+      }
     };
   }
 };

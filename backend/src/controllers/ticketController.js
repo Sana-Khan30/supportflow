@@ -5,6 +5,8 @@ const { triageTicket } = require('../services/aiService');
 const ALLOWED_STATUSES = ['New', 'Assigned', 'In Progress', 'Resolved'];
 const ALLOWED_PRIORITIES = ['Low', 'Medium', 'High'];
 
+
+
 exports.createTicket = async (req, res) => {
   try {
     const { subject, description, category } = req.body;
@@ -34,6 +36,7 @@ exports.createTicket = async (req, res) => {
 
     res.status(201).json(ticket);
   } catch (err) {
+    console.error('createTicket error:', err);
     res.status(500).json({ message: err.message });
   }
 };
