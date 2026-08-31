@@ -1,5 +1,6 @@
-const GEMINI_MODEL = 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const ALLOWED_PRIORITIES = ['Low', 'Medium', 'High'];
 
@@ -18,36 +19,17 @@ const validateAIResult = (data) => {
 
 const triageTicket = async (subject, description) => {
   try {
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': process.env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `Classify this support ticket. Respond ONLY with JSON, no markdown, no preamble:
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const result = await model.generateContent(
+      `Classify this support ticket. Respond ONLY with JSON, no markdown, no preamble:
 {"category": "<short category>", "priority": "Low|Medium|High", "summary": "<one sentence summary>"}
 
 Subject: ${subject}
 Description: ${description}`
-          }]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json'
-        }
-      })
-    });
+    );
 
-    if (!response.ok) {
-      throw new Error(`Gemini API responded with status ${response.status}`);
-    }
-
-    const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!text) throw new Error('Empty response from Gemini');
-
+    const text = result.response.text().trim();
     const cleaned = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleaned);
     const validated = validateAIResult(parsed);
