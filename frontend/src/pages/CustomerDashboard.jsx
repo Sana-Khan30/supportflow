@@ -109,14 +109,14 @@ const CustomerDashboard = () => {
           </div>
         )}
 
-        <div className="grid gap-3 mt-6">
-          {pagedBookings.map((b) => (
-            <Link key={b._id} to={`/customer/tickets/${b.ticket?._id}`}
+                <div className="grid gap-3 mt-6">
+          {pagedBookings.filter((b) => b.ticket).map((b) => (
+            <Link key={b._id} to={`/customer/tickets/${b.ticket._id}`}
               className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition block">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs text-gray-400">{b.ticket?.ticketNumber}</p>
-                  <p className="font-semibold text-gray-900 mt-0.5">{b.ticket?.subject}</p>
+                  <p className="text-xs text-gray-400">{b.ticket.ticketNumber}</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{b.ticket.subject}</p>
                   <p className="text-xs text-gray-500 mt-1">Worker: {b.agent?.name}</p>
                 </div>
                 <div className="flex gap-2">

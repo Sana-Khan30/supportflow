@@ -51,22 +51,23 @@ exports.getMyTickets = async (req, res) => {
   }
 };
 
+const Booking = require('../models/Booking');
+
 exports.deleteTicket = async (req, res) => {
-  try {
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-    if (ticket.customer.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-    if (ticket.status === 'Resolved') {
-      return res.status(400).json({ message: 'Cannot delete a resolved ticket' });
-    }
-    await ticket.deleteOne();
-    res.json({ message: 'Ticket deleted' });
-  } catch (err) {
-    console.error('deleteTicket error:', err);
-    res.status(500).json({ message: err.message });
+  const ticket = await Ticket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+  if (ticket.customer.toString() !== req.user.id) {
+    return res.status(403).json({ message: 'Forbidden' });
   }
+  if (ticket.status === 'Resolved') {
+    return res.status(400).json({ message: 'Cannot delete a resolved ticket' });
+  }
+  const hasBooking = await Booking.exists({ ticket: ticket._id });
+  if (hasBooking) {
+    return res.status(400).json({ message: 'Cannot delete a ticket that has a booking' });
+  }
+  await ticket.deleteOne();
+  res.json({ message: 'Ticket deleted' });
 };
 
 exports.getTicketById = async (req, res) => {
