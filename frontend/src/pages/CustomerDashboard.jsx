@@ -22,7 +22,7 @@ const CustomerDashboard = () => {
       const res = await api.get('/tickets/my');
       setTickets(res.data);
       const bRes = await api.get('/bookings/my');
-      setBookings(bRes.data);
+      setBookings(bRes.data.filter((b) => b.ticket));
     } catch (err) {
       setError('Failed to load tickets');
     } finally {
@@ -109,8 +109,8 @@ const CustomerDashboard = () => {
           </div>
         )}
 
-                <div className="grid gap-3 mt-6">
-          {pagedBookings.filter((b) => b.ticket).map((b) => (
+        <div className="grid gap-3 mt-6">
+          {pagedBookings.map((b) => (
             <Link key={b._id} to={`/customer/tickets/${b.ticket._id}`}
               className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition block">
               <div className="flex justify-between items-start">
