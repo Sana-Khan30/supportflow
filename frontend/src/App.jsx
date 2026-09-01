@@ -8,6 +8,7 @@ import NewTicket from "./pages/NewTicket";
 import CustomerTicketDetail from "./pages/CustomerTicketDetail";
 import AgentDashboard from "./pages/AgentDashboard";
 import AgentTicketDetail from "./pages/AgentTicketDetail";
+import AgentBookingDetail from "./pages/AgentBookingDetail";
 
 const Home = () => {
   const { user } = useAuth();
@@ -62,6 +63,14 @@ function App() {
             element={
               <ProtectedRoute role="agent">
                 <AgentTicketDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/agent/bookings/:id"
+            element={
+              <ProtectedRoute role="agent">
+                <AgentBookingDetail />
               </ProtectedRoute>
             }
           />

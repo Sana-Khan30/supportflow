@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   createTicket, getMyTickets, getTicketById,
-  getAllTickets, assignToMe, updateTicket
+  getAllTickets, assignToMe, updateTicket, deleteTicket
 } = require('../controllers/ticketController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -12,5 +12,6 @@ router.get('/', protect, authorize('agent'), getAllTickets);
 router.get('/:id', protect, getTicketById);
 router.patch('/:id/assign', protect, authorize('agent'), assignToMe);
 router.patch('/:id', protect, authorize('agent'), updateTicket);
+router.delete('/:id', protect, authorize('customer'), deleteTicket);
 
 module.exports = router;

@@ -42,73 +42,116 @@ exports.createTicket = async (req, res) => {
 };
 
 exports.getMyTickets = async (req, res) => {
-  const tickets = await Ticket.find({ customer: req.user.id }).sort({ createdAt: -1 });
-  res.json(tickets);
+  try {
+    const tickets = await Ticket.find({ customer: req.user.id }).sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (err) {
+    console.error('getMyTickets error:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.deleteTicket = async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (ticket.customer.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    if (ticket.status === 'Resolved') {
+      return res.status(400).json({ message: 'Cannot delete a resolved ticket' });
+    }
+    await ticket.deleteOne();
+    res.json({ message: 'Ticket deleted' });
+  } catch (err) {
+    console.error('deleteTicket error:', err);
+    res.status(500).json({ message: err.message });
+  }
 };
 
 exports.getTicketById = async (req, res) => {
-  const ticket = await Ticket.findById(req.params.id);
-  if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-  if (req.user.role === 'customer' && ticket.customer.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Forbidden' });
+    if (req.user.role === 'customer' && ticket.customer.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    res.json(ticket);
+  } catch (err) {
+    console.error('getTicketById error:', err);
+    res.status(500).json({ message: err.message });
   }
-  res.json(ticket);
 };
 
 exports.getAllTickets = async (req, res) => {
-  const tickets = await Ticket.find().sort({ createdAt: -1 });
-  res.json(tickets);
+  try {
+    const tickets = await Ticket.find().sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (err) {
+    console.error('getAllTickets error:', err);
+    res.status(500).json({ message: err.message });
+  }
 };
 
 exports.assignToMe = async (req, res) => {
-  const ticket = await Ticket.findById(req.params.id);
-  if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-  if (ticket.status === 'Resolved') {
-    return res.status(400).json({ message: 'Cannot modify a resolved ticket' });
-  }
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (ticket.status === 'Resolved') {
+      return res.status(400).json({ message: 'Cannot modify a resolved ticket' });
+    }
 
-  ticket.agent = req.user.id;
-  if (ticket.status === 'New') ticket.status = 'Assigned';
-  await ticket.save();
-  res.json(ticket);
+    ticket.agent = req.user.id;
+    if (ticket.status === 'New') ticket.status = 'Assigned';
+    await ticket.save();
+    res.json(ticket);
+  } catch (err) {
+    console.error('assignToMe error:', err);
+    res.status(500).json({ message: err.message });
+  }
 };
 
 exports.updateTicket = async (req, res) => {
-  const ticket = await Ticket.findById(req.params.id);
-  if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-  if (ticket.status === 'Resolved') {
-    return res.status(400).json({ message: 'Cannot modify a resolved ticket' });
-  }
-  if (!ticket.agent || ticket.agent.toString() !== req.user.id) {
-    return res.status(403).json({ message: 'Only the assigned agent can modify this ticket' });
-  }
-
-  const { category, priority, aiSummary, status, resolutionNote } = req.body;
-
-  if (category) ticket.category = category;
-  if (aiSummary) ticket.aiSummary = aiSummary;
-
-  if (priority) {
-    if (!ALLOWED_PRIORITIES.includes(priority)) {
-      return res.status(400).json({ message: 'Invalid priority' });
+    if (ticket.status === 'Resolved') {
+      return res.status(400).json({ message: 'Cannot modify a resolved ticket' });
     }
-    ticket.priority = priority;
-  }
-
-  if (status) {
-    if (!ALLOWED_STATUSES.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+    if (!ticket.agent || ticket.agent.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the assigned agent can modify this ticket' });
     }
-    if (status === 'Resolved' && !resolutionNote && !ticket.resolutionNote) {
-      return res.status(400).json({ message: 'Resolution note required to resolve ticket' });
+
+    const { category, priority, aiSummary, status, resolutionNote } = req.body;
+
+    if (category) ticket.category = category;
+    if (aiSummary) ticket.aiSummary = aiSummary;
+
+    if (priority) {
+      if (!ALLOWED_PRIORITIES.includes(priority)) {
+        return res.status(400).json({ message: 'Invalid priority' });
+      }
+      ticket.priority = priority;
     }
-    ticket.status = status;
+
+    if (status) {
+      if (!ALLOWED_STATUSES.includes(status)) {
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+      if (status === 'Resolved' && !resolutionNote && !ticket.resolutionNote) {
+        return res.status(400).json({ message: 'Resolution note required to resolve ticket' });
+      }
+      ticket.status = status;
+    }
+
+    if (resolutionNote) ticket.resolutionNote = resolutionNote;
+
+    await ticket.save();
+    res.json(ticket);
+  } catch (err) {
+    console.error('updateTicket error:', err);
+    res.status(500).json({ message: err.message });
   }
-
-  if (resolutionNote) ticket.resolutionNote = resolutionNote;
-
-  await ticket.save();
-  res.json(ticket);
 };

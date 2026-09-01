@@ -159,8 +159,13 @@ const AgentTicketDetail = () => {
           <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
             {messages.length === 0 && <p className="text-gray-400 text-sm">No messages yet.</p>}
             {messages.map((m) => (
-              <div key={m._id} className={`p-2 rounded max-w-xs ${m.senderRole === 'agent' ? 'bg-gray-100 ml-auto' : 'bg-blue-100'}`}>
-                <p className="text-xs text-gray-500">{m.senderRole}</p>
+              <div key={m._id} className={`p-2 rounded max-w-xs ${
+                m.senderRole === 'ai' ? 'bg-purple-100' :
+                m.senderRole === 'agent' ? 'bg-gray-100 ml-auto' : 'bg-blue-100'
+              }`}>
+                <p className="text-xs text-gray-500">
+                  {m.senderRole === 'ai' ? '🤖 AI Assistant' : m.senderRole}
+                </p>
                 <p className="text-sm">{m.text}</p>
               </div>
             ))}

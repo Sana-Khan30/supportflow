@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const Ticket = require('../models/Ticket');
+const { generateReply } = require('../services/aiService');
 
 const canAccessTicket = (ticket, user) => {
   if (user.role === 'customer') return ticket.customer.toString() === user.id;
@@ -36,6 +37,24 @@ exports.sendMessage = async (req, res) => {
     senderRole: req.user.role,
     text: text.trim()
   });
+
+  // Auto-reply: only trigger when the CUSTOMER sends a message, to avoid loops
+  if (req.user.role === 'customer') {
+    try {
+      const priorMessages = await Message.find({ ticket: ticket._id }).sort({ createdAt: 1 });
+      const aiResult = await generateReply(ticket, priorMessages, text.trim());
+
+      await Message.create({
+        ticket: ticket._id,
+        sender: null,
+        senderRole: 'ai',
+        text: aiResult.text
+      });
+    } catch (err) {
+      console.error('Auto-reply failed:', err.message);
+      // Don't block the customer's message if AI reply fails
+    }
+  }
 
   res.status(201).json(message);
 };
