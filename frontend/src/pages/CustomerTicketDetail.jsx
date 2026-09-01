@@ -20,6 +20,7 @@ const CustomerTicketDetail = () => {
   const [reviewError, setReviewError] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [aiTyping, setAiTyping] = useState(false);
   const pollRef = useRef(null);
 
   const loadData = async () => {
@@ -57,9 +58,20 @@ const CustomerTicketDetail = () => {
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
-    await api.post(`/messages/${id}`, { text });
+    const optimisticMessage = {
+      _id: `temp-${Date.now()}`,
+      senderRole: 'customer',
+      text: text.trim()
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
     setText('');
-    loadData();
+    setAiTyping(true);
+    try {
+      await api.post(`/messages/${id}`, { text: optimisticMessage.text });
+      await loadData();
+    } finally {
+      setAiTyping(false);
+    }
   };
 
   const bookAgent = async (agentId) => {
@@ -203,6 +215,12 @@ const CustomerTicketDetail = () => {
                 <p className="text-sm">{m.text}</p>
               </div>
             ))}
+            {aiTyping && (
+              <div className="p-2 rounded max-w-xs bg-purple-50">
+                <p className="text-xs text-gray-500">🤖 AI Assistant</p>
+                <p className="text-sm text-gray-400 italic">typing...</p>
+              </div>
+            )}
           </div>
           {ticket.status !== 'Resolved' ? (
             <form onSubmit={sendMessage} className="flex gap-2">
