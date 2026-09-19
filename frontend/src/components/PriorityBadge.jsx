@@ -1,11 +1,11 @@
 const colors = {
-  Low: 'bg-green-100 text-green-800',
-  Medium: 'bg-yellow-100 text-yellow-800',
-  High: 'bg-red-100 text-red-800',
+  Low: 'bg-signal-teal-dim text-signal-teal',
+  Medium: 'bg-signal-amber-dim text-ink-700',
+  High: 'bg-signal-coral-dim text-signal-coral',
 };
 
 const PriorityBadge = ({ priority }) => (
-  <span className={`text-xs font-medium px-2 py-1 rounded ${colors[priority] || 'bg-gray-100'}`}>
+  <span className={`text-xs font-medium px-2 py-1 rounded ${colors[priority] || 'bg-ink-50 text-ink-500'}`}>
     {priority}
   </span>
 );

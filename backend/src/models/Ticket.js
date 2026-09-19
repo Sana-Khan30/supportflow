@@ -11,7 +11,12 @@ const ticketSchema = new mongoose.Schema({
   status: { type: String, enum: ['New', 'Assigned', 'In Progress', 'Resolved'], default: 'New' },
   aiSummary: { type: String, default: '' },
   aiRaw: { type: Object, default: null },
-  resolutionNote: { type: String, default: '' }
+  resolutionNote: { type: String, default: '' },
+  resolvedAt: { type: Date, default: null },
+  // Set once at creation from the creating customer's isDemo flag — keeps
+  // demo tickets and real tickets in fully separate worlds everywhere
+  // (agent queues, booking suggestions, analytics).
+  isDemo: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

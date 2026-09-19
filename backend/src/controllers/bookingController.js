@@ -20,11 +20,17 @@ exports.getSuggestedAgents = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    let agents = await User.find({ role: 'agent', skills: ticket.category })
+    // Only ever suggest agents on the customer's own side of the demo/real boundary
+    const demoScope = !!req.user.isDemo;
+
+    let agents = await User.find({ role: 'agent', skills: ticket.category, isDemo: demoScope })
       .select('name email skills');
 
+    // No agent tagged with this exact category — fall back to agents tagged
+    // "General" instead of showing random unrelated agents.
     if (agents.length === 0) {
-      agents = await User.find({ role: 'agent' }).select('name email skills').limit(5);
+      agents = await User.find({ role: 'agent', skills: 'General', isDemo: demoScope })
+        .select('name email skills');
     }
 
     res.json(agents);
@@ -49,6 +55,11 @@ exports.createBooking = async (req, res) => {
 
     const agent = await User.findById(agentId);
     if (!agent || agent.role !== 'agent') {
+      return res.status(400).json({ message: 'Invalid agent selected' });
+    }
+    // Block booking an agent from the other side of the demo/real boundary,
+    // even if someone crafts the request directly instead of using the suggested list.
+    if (Boolean(agent.isDemo) !== Boolean(req.user.isDemo)) {
       return res.status(400).json({ message: 'Invalid agent selected' });
     }
 

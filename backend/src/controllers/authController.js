@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const generateToken = (user) => {
-  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id: user._id, role: user.role, isDemo: !!user.isDemo }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
 exports.register = async (req, res) => {
@@ -21,7 +21,7 @@ exports.register = async (req, res) => {
 
     return res.status(201).json({
       token: generateToken(user),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, isDemo: user.isDemo }
     });
   } catch (err) {
     console.error(err);
@@ -38,7 +38,7 @@ exports.login = async (req, res) => {
     }
     return res.json({
       token: generateToken(user),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, isDemo: user.isDemo }
     });
   } catch (err) {
     console.error(err);
@@ -49,4 +49,33 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   const user = await User.findById(req.user.id).select('-password');
   res.json(user);
+};
+
+// Public one-click login for portfolio/demo visitors — no signup needed.
+// Only works for the two fixed demo accounts created by seedDemoUsers.js.
+//
+// SECURITY: gated behind DEMO_LOGIN_ENABLED so it can never be reached in a
+// real production deployment. Without this, anyone who finds the endpoint
+// (no password required) could log in as an agent and read/reply to every
+// customer's private ticket conversation.
+//
+// Set DEMO_LOGIN_ENABLED=true only in your demo/portfolio deployment's .env —
+// leave it unset (or 'false') everywhere else, including real production.
+exports.demoLogin = async (req, res) => {
+  if (process.env.DEMO_LOGIN_ENABLED !== 'true') {
+    return res.status(404).json({ message: 'Not found' });
+  }
+
+  const { role } = req.params;
+  const email = role === 'agent' ? 'demo.agent@supportflow.dev' : 'demo.customer@supportflow.dev';
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: 'Demo account not seeded yet. Run: node src/utils/seedDemoUsers.js' });
+  }
+
+  return res.json({
+    token: generateToken(user),
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, isDemo: user.isDemo }
+  });
 };

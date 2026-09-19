@@ -1,20 +1,87 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import Pagination from '../components/Pagination';
+import Button from '../components/ui/Button';
 
 const PAGE_SIZE = 6;
+
+const EmptyState = ({ title, body }) => (
+  <div className="bg-white rounded-md border border-dashed border-ink-200 p-10 text-center mt-6">
+    <p className="text-ink-700 font-medium">{title}</p>
+    <p className="text-sm text-ink-400 mt-1">{body}</p>
+  </div>
+);
+
+const TicketCard = ({ ticket, booking, onDelete }) => (
+  <Link
+    to={`/customer/tickets/${ticket._id}`}
+    className="group relative flex bg-white border border-ink-100 rounded-md overflow-hidden shadow-stub hover:border-ink-300 transition-colors"
+  >
+    <div
+      className={`w-1.5 shrink-0 ${
+        ticket.priority === 'High'
+          ? 'bg-signal-coral'
+          : ticket.priority === 'Low'
+          ? 'bg-signal-teal'
+          : 'bg-signal-amber'
+      }`}
+    />
+    <div className="flex-1 px-5 py-4">
+      <div className="flex justify-between items-start gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-ink-400">
+            #{ticket.ticketNumber} · {new Date(ticket.createdAt).toLocaleDateString()}
+          </p>
+          <p className="font-display font-semibold text-ink-900 mt-0.5 truncate">{ticket.subject}</p>
+          <p className="text-sm text-ink-400 mt-1 line-clamp-1">{ticket.description}</p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <PriorityBadge priority={ticket.priority} />
+          <StatusBadge status={ticket.status} />
+        </div>
+      </div>
+
+      {booking && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-ink-50 text-xs text-ink-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-300 shrink-0" />
+          <span>
+            Agent booked: <span className="text-ink-700 font-medium">{booking.agent?.name}</span>
+          </span>
+          <span className="ml-auto">
+            {ticket.status === 'Resolved' && ['Pending', 'Accepted'].includes(booking.status) ? (
+              <span className="text-ink-300 italic">Not accepted</span>
+            ) : (
+              <StatusBadge status={booking.status} />
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+
+    <button
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete(ticket._id);
+      }}
+      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-xs text-ink-300 hover:text-signal-coral transition-opacity"
+    >
+      Delete
+    </button>
+  </Link>
+);
 
 const CustomerDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [ticketPage, setTicketPage] = useState(1);
-  const [bookingPage, setBookingPage] = useState(1);
+  const [page, setPage] = useState(1);
   const navigate = useNavigate();
 
   const fetchTickets = async () => {
@@ -32,102 +99,51 @@ const CustomerDashboard = () => {
 
   useEffect(() => { fetchTickets(); }, []);
 
-  const deleteTicket = async (e, ticketId) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const deleteTicket = async (ticketId) => {
     if (!window.confirm('Delete this ticket permanently?')) return;
     try {
       await api.delete(`/tickets/${ticketId}`);
       setTickets((prev) => prev.filter((t) => t._id !== ticketId));
+      toast.success('Ticket deleted');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete ticket');
+      toast.error(err.response?.data?.message || 'Failed to delete ticket');
     }
   };
 
-  const ticketPages = Math.max(1, Math.ceil(tickets.length / PAGE_SIZE));
-  const pagedTickets = tickets.slice((ticketPage - 1) * PAGE_SIZE, ticketPage * PAGE_SIZE);
+  const pages = Math.max(1, Math.ceil(tickets.length / PAGE_SIZE));
+  const paged = tickets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const bookingPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
-  const pagedBookings = bookings.slice((bookingPage - 1) * PAGE_SIZE, bookingPage * PAGE_SIZE);
+  const bookingByTicketId = (ticketId) => bookings.find((b) => b.ticket._id === ticketId);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-paper">
       <Navbar />
-      <div className="p-6 max-w-5xl mx-auto">
+      <div className="p-6 max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-1">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">My Tickets</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{tickets.length} total</p>
+            <h2 className="font-display text-2xl font-bold text-ink-900">My tickets</h2>
+            <p className="text-sm text-ink-400 mt-0.5 font-mono">{tickets.length} total</p>
           </div>
-          <button onClick={() => navigate('/customer/new')}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-            + New Ticket
-          </button>
+          <Button onClick={() => navigate('/customer/new')}>+ New ticket</Button>
         </div>
 
-        {loading && <p className="text-gray-500 mt-6">Loading...</p>}
-        {error && <p className="text-red-500 mt-6">{error}</p>}
+        {loading && <p className="text-ink-400 mt-6">Loading…</p>}
+        {error && <p className="text-signal-coral mt-6">{error}</p>}
         {!loading && tickets.length === 0 && (
-          <div className="bg-white rounded-lg border border-dashed border-gray-300 p-10 text-center mt-6">
-            <p className="text-gray-500">No tickets yet.</p>
-            <p className="text-sm text-gray-400 mt-1">Create your first ticket to get help from our team.</p>
-          </div>
+          <EmptyState title="No tickets yet" body="Create your first ticket to get help from our team." />
         )}
 
         <div className="grid gap-3 mt-6">
-          {pagedTickets.map((t) => (
-            <Link key={t._id} to={`/customer/tickets/${t._id}`}
-              className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition block">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-gray-400">{t.ticketNumber}</p>
-                  <p className="font-semibold text-gray-900 mt-0.5">{t.subject}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <PriorityBadge priority={t.priority} />
-                  <StatusBadge status={t.status} />
-                  <button onClick={(e) => deleteTicket(e, t._id)}
-                    className="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded hover:bg-red-50">
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </Link>
+          {paged.map((t) => (
+            <TicketCard
+              key={t._id}
+              ticket={t}
+              booking={bookingByTicketId(t._id)}
+              onDelete={deleteTicket}
+            />
           ))}
         </div>
-        <Pagination page={ticketPage} totalPages={ticketPages} onChange={setTicketPage} />
-
-        <div className="mt-12 mb-1">
-          <h2 className="text-2xl font-bold text-gray-900">My Bookings</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{bookings.length} total</p>
-        </div>
-
-        {!loading && bookings.length === 0 && (
-          <div className="bg-white rounded-lg border border-dashed border-gray-300 p-10 text-center mt-6">
-            <p className="text-gray-500">No bookings yet.</p>
-            <p className="text-sm text-gray-400 mt-1">Book a worker from a ticket to see it here.</p>
-          </div>
-        )}
-
-        <div className="grid gap-3 mt-6">
-          {pagedBookings.map((b) => (
-            <Link key={b._id} to={`/customer/tickets/${b.ticket._id}`}
-              className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition block">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-gray-400">{b.ticket.ticketNumber}</p>
-                  <p className="font-semibold text-gray-900 mt-0.5">{b.ticket.subject}</p>
-                  <p className="text-xs text-gray-500 mt-1">Worker: {b.agent?.name}</p>
-                </div>
-                <div className="flex gap-2">
-                  <PriorityBadge priority={b.urgency} />
-                  <StatusBadge status={b.status} />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-        <Pagination page={bookingPage} totalPages={bookingPages} onChange={setBookingPage} />
+        <Pagination page={page} totalPages={pages} onChange={setPage} />
       </div>
     </div>
   );

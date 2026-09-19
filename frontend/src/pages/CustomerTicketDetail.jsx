@@ -1,12 +1,42 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Send } from 'lucide-react';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
+import Button from '../components/ui/Button';
+import { Textarea } from '../components/ui/Input';
+import { useSocket } from '../context/SocketContext';
+
+const MessageBubble = ({ m }) => {
+  const isAi = m.senderRole === 'ai';
+  const isCustomer = m.senderRole === 'customer';
+  return (
+    <div className={`flex flex-col ${isCustomer ? 'items-end' : 'items-start'}`}>
+      <span className="text-[10px] font-mono text-ink-400 mb-1 px-1">
+        {isAi ? '🤖 SupportFlow AI' : isCustomer ? 'You' : '🎧 Agent'}
+      </span>
+      <div
+        className={`px-4 py-2.5 rounded-2xl max-w-[80%] sm:max-w-sm text-sm leading-relaxed ${
+          isCustomer
+            ? 'bg-ink-900 text-paper rounded-br-sm'
+            : isAi
+            ? 'bg-signal-amber/10 border border-signal-amber/30 text-ink-900 rounded-bl-sm'
+            : 'bg-paper text-ink-900 border border-ink-200 rounded-bl-sm'
+        }`}
+      >
+        <p className="whitespace-pre-wrap">{m.text}</p>
+      </div>
+    </div>
+  );
+};
 
 const CustomerTicketDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { socket, isConnected } = useSocket();
+
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -21,56 +51,86 @@ const CustomerTicketDetail = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiTyping, setAiTyping] = useState(false);
-  const pollRef = useRef(null);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
 
   const loadData = async () => {
-    const [tRes, mRes] = await Promise.all([
-      api.get(`/tickets/${id}`),
-      api.get(`/messages/${id}`)
-    ]);
-    setTicket(tRes.data);
-    setMessages(mRes.data);
     try {
-      const bRes = await api.get('/bookings/my');
-      const existing = bRes.data.find((b) => b.ticket?._id === id);
-      setBooking(existing || null);
-      if (!existing) {
-        const sRes = await api.get(`/bookings/suggested/${id}`);
-        setSuggestedAgents(sRes.data);
-      } else if (existing.status === 'Completed') {
-        try {
-          const rRes = await api.get(`/bookings/${existing._id}/review`);
-          setReview(rRes.data);
-        } catch { /* no review yet */ }
+      const [tRes, mRes] = await Promise.all([
+        api.get(`/tickets/${id}`),
+        api.get(`/messages/${id}`)
+      ]);
+      setTicket(tRes.data);
+      setMessages(mRes.data);
+
+      try {
+        const bRes = await api.get('/bookings/my');
+        const existing = bRes.data.find((b) => b.ticket?._id === id);
+        setBooking(existing || null);
+        if (!existing) {
+          const sRes = await api.get(`/bookings/suggested/${id}`);
+          setSuggestedAgents(sRes.data);
+        } else if (existing.status === 'Completed') {
+          try {
+            const rRes = await api.get(`/bookings/${existing._id}/review`);
+            setReview(rRes.data);
+          } catch {
+            // no review yet
+          }
+        }
+      } catch {
+        // Booking feature unavailable — ignore silently
       }
-    } catch {
-      // Booking feature unavailable — ignore silently
+    } catch (err) {
+      console.error('Failed to load ticket:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  useEffect(() => { loadData(); }, [id]);
+
+  // Real-time: join this ticket's room and react to live events instead of polling.
+  // Event names here must match what the backend actually emits
+  // (sockets/index.js, messageController.js, ticketController.js):
+  // 'new_message', 'ai_typing' ({ typing }), 'ticket_updated'
   useEffect(() => {
-    loadData();
-    pollRef.current = setInterval(loadData, 3000);
-    return () => clearInterval(pollRef.current);
-  }, [id]);
+    if (!socket || !id) return;
+    socket.emit('ticket:join', id);
+
+    const onMessage = (m) =>
+      setMessages((prev) => (prev.some((x) => x._id === m._id) ? prev : [...prev, m]));
+    const onAiTyping = (data) => setAiTyping(Boolean(data?.typing));
+    const onTicketUpdate = (updated) =>
+      setTicket((prev) => (prev && prev._id === updated._id ? { ...prev, ...updated } : prev));
+
+    socket.on('new_message', onMessage);
+    socket.on('ai_typing', onAiTyping);
+    socket.on('ticket_updated', onTicketUpdate);
+
+    return () => {
+      socket.emit('ticket:leave', id);
+      socket.off('new_message', onMessage);
+      socket.off('ai_typing', onAiTyping);
+      socket.off('ticket_updated', onTicketUpdate);
+    };
+  }, [socket, id]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, aiTyping]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    const optimisticMessage = {
-      _id: `temp-${Date.now()}`,
-      senderRole: 'customer',
-      text: text.trim()
-    };
-    setMessages((prev) => [...prev, optimisticMessage]);
+    if (!text.trim() || sending) return;
+    const value = text.trim();
     setText('');
-    setAiTyping(true);
+    setSending(true);
     try {
-      await api.post(`/messages/${id}`, { text: optimisticMessage.text });
-      await loadData();
+      await api.post(`/messages/${id}`, { text: value });
+      // The new message arrives via the 'new_message' socket event — no manual refetch needed.
     } finally {
-      setAiTyping(false);
+      setSending(false);
     }
   };
 
@@ -102,53 +162,106 @@ const CustomerTicketDetail = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
-  if (!ticket) return <div className="p-8 text-red-500">Ticket not found</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-8 text-ink-400 font-mono text-sm">
+          Loading ticket details…
+        </div>
+      </div>
+    );
+  }
+
+  if (!ticket) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <p className="text-signal-coral font-bold text-lg mb-2">Ticket not found</p>
+          <Link to="/customer">
+            <Button variant="outline" size="sm">Back to dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const isResolved = ticket.status === 'Resolved';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-paper text-ink-900 pb-16">
       <Navbar />
-      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-        <div className="bg-white p-6 rounded-lg shadow mb-4">
-          <p className="text-xs text-gray-400">{ticket.ticketNumber}</p>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">{ticket.subject}</h2>
-          <div className="flex gap-2 mb-3">
-            <StatusBadge status={ticket.status} />
-            <PriorityBadge priority={ticket.priority} />
-            <span className="text-xs bg-gray-100 px-2 py-1 rounded">{ticket.category}</span>
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <button onClick={() => navigate(-1)} className="text-xs font-mono text-ink-500 hover:text-ink-900">
+            ← Back
+          </button>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-400">
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-signal-teal animate-pulse' : 'bg-ink-300'}`} />
+            <span>{isConnected ? 'Real-time sync active' : 'Connecting…'}</span>
           </div>
-          <p className="text-gray-600 text-sm mb-3">{ticket.description}</p>
-          {ticket.aiSummary && (
-            ticket.aiSummary.includes('AI triage unavailable') ? (
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-800">
-                <strong>Pending Manual Review:</strong> Our support team will review and categorize your ticket shortly.
-              </div>
-            ) : (
-              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                <strong>AI Summary:</strong> {ticket.aiSummary}
-              </div>
-            )
-          )}
         </div>
 
-        {!booking && suggestedAgents.length > 0 && (
-          <div className="bg-white p-6 rounded-lg shadow mb-4">
-            <h3 className="font-semibold text-gray-800 mb-3">Suggested Workers</h3>
-            {bookingError && <p className="text-red-500 text-sm mb-3">{bookingError}</p>}
-            <div className="space-y-2">
-              {suggestedAgents.map((a) => (
-                <div key={a._id} className="flex justify-between items-center border rounded p-3">
+        <div className="flex bg-white border border-ink-100 rounded-md overflow-hidden shadow-stub">
+          <div className={`w-1.5 shrink-0 ${
+            ticket.priority === 'High' ? 'bg-signal-coral' : ticket.priority === 'Low' ? 'bg-signal-teal' : 'bg-signal-amber'
+          }`} />
+          <div className="flex-1 p-6">
+            <p className="font-mono text-xs text-ink-400">#{ticket.ticketNumber}</p>
+            <h1 className="font-display text-xl font-bold text-ink-900 mb-2 mt-0.5">{ticket.subject}</h1>
+            <div className="flex gap-2 mb-3">
+              <StatusBadge status={ticket.status} />
+              <PriorityBadge priority={ticket.priority} />
+              <span className="text-xs bg-ink-50 text-ink-500 px-2 py-1 rounded">{ticket.category}</span>
+            </div>
+            <p className="text-ink-600 text-sm mb-3 whitespace-pre-wrap">{ticket.description}</p>
+            {ticket.aiSummary && (
+              <div
+                className={`p-3.5 rounded-lg text-xs leading-relaxed border ${
+                  ticket.aiSummary.includes('AI triage unavailable')
+                    ? 'bg-signal-amber/10 border-signal-amber/30 text-ink-800'
+                    : 'bg-paper border-ink-200/70 text-ink-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <span>🤖</span>
+                  <span>AI summary</span>
+                </div>
+                <p>
+                  {ticket.aiSummary.includes('AI triage unavailable')
+                    ? 'Pending manual review — our support team will categorize this shortly.'
+                    : ticket.aiSummary}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {!booking && suggestedAgents.length > 0 && !isResolved && (
+          <div className="bg-white border border-ink-100 rounded-md p-6 shadow-stub">
+            <h3 className="font-display font-semibold text-ink-900 mb-1">Recommended agents</h3>
+            <p className="text-xs text-ink-500 mb-3">Matched based on your ticket's category.</p>
+            {bookingError && <p className="text-signal-coral text-xs mb-3 font-mono">{bookingError}</p>}
+            <div className="space-y-2.5">
+              {suggestedAgents.map((agent) => (
+                <div key={agent._id} className="flex items-center justify-between p-3.5 rounded-lg border border-ink-100 bg-paper/40">
                   <div>
-                    <p className="font-medium text-gray-800">{a.name}</p>
-                    <p className="text-xs text-gray-500">{a.email}</p>
-                    {a.skills?.length > 0 && (
-                      <p className="text-xs text-gray-400 mt-1">{a.skills.join(', ')}</p>
+                    <p className="font-semibold text-sm text-ink-900">{agent.name}</p>
+                    <p className="text-xs text-ink-400 font-mono">{agent.email}</p>
+                    {agent.skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {agent.skills.map((s, i) => (
+                          <span key={i} className="text-[10px] bg-white border border-ink-100 px-1.5 py-0.5 rounded text-ink-600">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <button onClick={() => bookAgent(a._id)} disabled={bookingLoadingId === a._id}
-                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-                    {bookingLoadingId === a._id ? 'Booking...' : 'Book'}
-                  </button>
+                  <Button size="sm" disabled={bookingLoadingId === agent._id} onClick={() => bookAgent(agent._id)}>
+                    {bookingLoadingId === agent._id ? 'Booking…' : 'Book'}
+                  </Button>
                 </div>
               ))}
             </div>
@@ -156,10 +269,12 @@ const CustomerTicketDetail = () => {
         )}
 
         {booking && (
-          <div className="bg-white p-6 rounded-lg shadow mb-4">
-            <h3 className="font-semibold text-gray-800 mb-2">Your Booking</h3>
-            <p className="text-sm text-gray-600">Worker: <strong>{booking.agent?.name}</strong></p>
-            <div className="flex gap-2 mt-2">
+          <div className="bg-white border border-ink-100 rounded-md p-5 shadow-stub flex items-center justify-between">
+            <div>
+              <h4 className="font-display font-semibold text-sm text-ink-900">Your booking</h4>
+              <p className="text-xs text-ink-500 mt-0.5">Agent: <strong>{booking.agent?.name}</strong></p>
+            </div>
+            <div className="flex items-center gap-2">
               <StatusBadge status={booking.status} />
               <PriorityBadge priority={booking.urgency} />
             </div>
@@ -167,72 +282,101 @@ const CustomerTicketDetail = () => {
         )}
 
         {booking?.status === 'Completed' && (
-          <div className="bg-white p-6 rounded-lg shadow mb-4">
-            <h3 className="font-semibold text-gray-800 mb-3">
-              {review ? 'Your Review' : 'Rate your experience'}
+          <div className="bg-white border border-ink-100 rounded-md p-6 shadow-stub">
+            <h3 className="font-display font-semibold text-ink-900 mb-3">
+              {review ? 'Your review' : 'Rate your experience'}
             </h3>
             {review ? (
-              <div>
-                <div className="flex gap-1 mb-2">
+              <div className="space-y-2">
+                <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <span key={n} className={n <= review.rating ? 'text-yellow-400 text-xl' : 'text-gray-300 text-xl'}>★</span>
+                    <span key={n} className={n <= review.rating ? 'text-signal-amber text-lg' : 'text-ink-200 text-lg'}>★</span>
                   ))}
                 </div>
-                {review.comment && <p className="text-sm text-gray-600">{review.comment}</p>}
+                {review.comment && (
+                  <p className="text-xs text-ink-600 italic bg-paper p-3 rounded-lg border border-ink-100">
+                    "{review.comment}"
+                  </p>
+                )}
               </div>
             ) : (
               <form onSubmit={submitReview}>
-                {reviewError && <p className="text-red-500 text-sm mb-2">{reviewError}</p>}
-                <div className="flex gap-1 mb-3">
+                {reviewError && <p className="text-signal-coral text-xs mb-2">{reviewError}</p>}
+                <div className="flex gap-1.5 mb-3">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <button type="button" key={n} onClick={() => setRating(n)}
-                      className={`text-2xl ${n <= rating ? 'text-yellow-400' : 'text-gray-300'}`}>★</button>
+                    <button
+                      type="button"
+                      key={n}
+                      onClick={() => setRating(n)}
+                      className={`text-2xl transition-transform hover:scale-110 ${n <= rating ? 'text-signal-amber' : 'text-ink-200'}`}
+                    >
+                      ★
+                    </button>
                   ))}
                 </div>
-                <textarea value={comment} onChange={(e) => setComment(e.target.value)}
-                  rows="2" className="w-full mb-3 px-3 py-2 border rounded" placeholder="Optional comment..." />
-                <button type="submit" disabled={rating === 0 || reviewSubmitting}
-                  className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50">
-                  {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
-                </button>
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={2}
+                  className="mb-3"
+                  placeholder="Optional comment…"
+                />
+                <Button type="submit" size="sm" disabled={rating === 0 || reviewSubmitting}>
+                  {reviewSubmitting ? 'Submitting…' : 'Submit review'}
+                </Button>
               </form>
             )}
           </div>
         )}
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="font-semibold text-gray-800 mb-3">Conversation</h3>
-          <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
-            {messages.length === 0 && <p className="text-gray-400 text-sm">No messages yet.</p>}
-            {messages.map((m) => (
-              <div key={m._id} className={`p-2 rounded max-w-xs ${
-                m.senderRole === 'ai' ? 'bg-purple-100' :
-                m.senderRole === 'agent' ? 'bg-gray-100' : 'bg-blue-100 ml-auto'
-              }`}>
-                <p className="text-xs text-gray-500">
-                  {m.senderRole === 'ai' ? '🤖 AI Assistant' : m.senderRole}
-                </p>
-                <p className="text-sm">{m.text}</p>
+        <div className="bg-white border border-ink-100 rounded-md shadow-stub overflow-hidden">
+          <div className="px-6 py-4 border-b border-ink-100 flex items-center justify-between bg-paper/30">
+            <h3 className="font-display font-semibold text-sm text-ink-900">Conversation</h3>
+            <span className="text-xs font-mono text-ink-400">{messages.length} messages</span>
+          </div>
+
+          <div className="p-6 space-y-3.5 max-h-96 overflow-y-auto">
+            {messages.length === 0 && (
+              <div className="text-center py-8 text-ink-400 text-xs font-mono">
+                No messages yet — send one below.
               </div>
-            ))}
+            )}
+            {messages.map((m) => <MessageBubble key={m._id} m={m} />)}
             {aiTyping && (
-              <div className="p-2 rounded max-w-xs bg-purple-50">
-                <p className="text-xs text-gray-500">🤖 AI Assistant</p>
-                <p className="text-sm text-gray-400 italic">typing...</p>
+              <div className="flex flex-col items-start">
+                <span className="text-[10px] font-mono text-signal-amber font-semibold mb-1 px-1">
+                  🤖 SupportFlow AI
+                </span>
+                <div className="px-4 py-2.5 rounded-2xl rounded-bl-sm bg-signal-amber/10 border border-signal-amber/30 text-ink-600 text-xs flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-signal-amber animate-ping" />
+                  <span className="font-mono italic">drafting a reply…</span>
+                </div>
+              </div>
+            )}
+            <div ref={scrollRef} />
+          </div>
+
+          <div className="p-4 bg-paper/40 border-t border-ink-100">
+            {!isResolved ? (
+              <form onSubmit={sendMessage} className="flex gap-2">
+                <input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Type a message…"
+                  className="flex-1 px-4 py-2.5 text-sm bg-white border border-ink-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ink-900 placeholder-ink-400"
+                />
+                <Button type="submit" disabled={sending || !text.trim()}>
+                  <Send size={15} />
+                </Button>
+              </form>
+            ) : (
+              <div className="text-center py-2 text-xs font-mono text-ink-400">
+                Ticket resolved — thread closed for new responses.
               </div>
             )}
           </div>
-          {ticket.status !== 'Resolved' ? (
-            <form onSubmit={sendMessage} className="flex gap-2">
-              <input value={text} onChange={(e) => setText(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded" placeholder="Type a message..." />
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Send</button>
-            </form>
-          ) : (
-            <p className="text-sm text-gray-400">Ticket resolved — conversation closed.</p>
-          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

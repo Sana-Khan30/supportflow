@@ -6,7 +6,11 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['customer', 'agent'], default: 'customer' },
-  skills: { type: [String], default: [] }
+  skills: { type: [String], default: [] },
+  // Marks the two fixed portfolio-demo accounts. Used everywhere to keep the
+  // demo sandbox (tickets, agents, bookings, analytics) fully isolated from
+  // real customer/agent data — never mixed in either direction.
+  isDemo: { type: Boolean, default: false }
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

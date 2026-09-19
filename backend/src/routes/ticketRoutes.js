@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   createTicket, getMyTickets, getTicketById,
-  getAllTickets, assignToMe, updateTicket, deleteTicket
+  getAllTickets, assignToMe, updateTicket, deleteTicket, reopenTicket
 } = require('../controllers/ticketController');
 const { protect, authorize } = require('../middleware/auth');
 

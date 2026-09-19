@@ -1,14 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
+import Button from '../components/ui/Button';
+import { Textarea } from '../components/ui/Input';
 
 const ALLOWED_URGENCY = ['Low', 'Medium', 'High'];
 
+const Card = ({ children, className = '' }) => (
+  <div className={`bg-white border border-ink-100 rounded-md p-6 ${className}`}>{children}</div>
+);
+
 const AgentBookingDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
   const [review, setReview] = useState(null);
   const [resolutionNote, setResolutionNote] = useState('');
@@ -17,26 +24,26 @@ const AgentBookingDetail = () => {
   const [acting, setActing] = useState(false);
   const pollRef = useRef(null);
 
-const loadData = async () => {
-  try {
-    const res = await api.get(`/bookings/${id}`);
-    setBooking(res.data);
-    if (res.data.status === 'Completed') {
-      try {
-        const rRes = await api.get(`/bookings/${id}/review`);
-        setReview(rRes.data);
-      } catch { /* no review yet */ }
+  const loadData = async () => {
+    try {
+      const res = await api.get(`/bookings/${id}`);
+      setBooking(res.data);
+      if (res.data.status === 'Completed') {
+        try {
+          const rRes = await api.get(`/bookings/${id}/review`);
+          setReview(rRes.data);
+        } catch { /* no review yet */ }
+      }
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load booking');
+      if (err.response?.status === 403 || err.response?.status === 404) {
+        clearInterval(pollRef.current);
+      }
+    } finally {
+      setLoading(false);
     }
-    setError('');
-  } catch (err) {
-    setError(err.response?.data?.message || 'Failed to load booking');
-    if (err.response?.status === 403 || err.response?.status === 404) {
-      clearInterval(pollRef.current); // stop hammering a route that will never succeed
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     loadData();
@@ -93,106 +100,128 @@ const loadData = async () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
-  if (!booking) return <div className="p-8 text-red-500">Booking not found</div>;
+  if (loading) return <div className="min-h-screen bg-paper p-8 text-ink-400">Loading…</div>;
+  if (!booking) return <div className="min-h-screen bg-paper p-8 text-signal-coral">Booking not found</div>;
 
   const isFinal = ['Rejected', 'Completed'].includes(booking.status);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-paper">
       <Navbar />
       <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
-        {error && <p className="bg-red-100 text-red-700 p-2 rounded text-sm">{error}</p>}
+        <button onClick={() => navigate(-1)} className="text-sm text-ink-400 hover:text-ink-900">
+          ← Back
+        </button>
+        {error && <p className="bg-signal-coral-dim text-signal-coral p-2.5 rounded-md text-sm">{error}</p>}
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <p className="text-xs text-gray-400">{booking.ticket?.ticketNumber}</p>
-              <h2 className="text-xl font-bold text-gray-800">{booking.ticket?.subject}</h2>
-              <p className="text-sm text-gray-500 mt-1">Customer: {booking.customer?.name} ({booking.customer?.email})</p>
+        <div className="flex bg-white border border-ink-100 rounded-md overflow-hidden shadow-stub">
+          <div className={`w-1.5 shrink-0 ${
+            booking.urgency === 'High' ? 'bg-signal-coral' : booking.urgency === 'Low' ? 'bg-signal-teal' : 'bg-signal-amber'
+          }`} />
+          <div className="flex-1 p-6">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="font-mono text-xs text-ink-400">{booking.ticket?.ticketNumber}</p>
+                <h2 className="font-display text-xl font-bold text-ink-900 mt-0.5">{booking.ticket?.subject}</h2>
+                <p className="text-sm text-ink-400 mt-1">
+                  Customer: {booking.customer?.name} ({booking.customer?.email})
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <PriorityBadge priority={booking.urgency} />
+                <StatusBadge status={booking.status} />
+              </div>
             </div>
-            <div className="flex gap-2">
-              <PriorityBadge priority={booking.urgency} />
-              <StatusBadge status={booking.status} />
-            </div>
+            <p className="text-ink-600 text-sm mt-3">{booking.ticket?.description}</p>
+            {booking.ticket?.aiSummary && (
+              <div className="bg-ink-50 p-3 rounded-md text-sm text-ink-700 mt-3">
+                <strong>AI summary:</strong> {booking.ticket.aiSummary}
+              </div>
+            )}
           </div>
-          <p className="text-gray-600 text-sm mt-3">{booking.ticket?.description}</p>
-          {booking.ticket?.aiSummary && (
-            <div className="bg-blue-50 p-3 rounded text-sm text-blue-800 mt-3">
-              <strong>AI Summary:</strong> {booking.ticket.aiSummary}
-            </div>
-          )}
         </div>
 
         {booking.status === 'Pending' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-800 mb-3">New Booking Request</h3>
+          <Card>
+            <h3 className="font-display font-semibold text-ink-900 mb-3">New booking request</h3>
             <div className="flex gap-3">
-              <button onClick={accept} disabled={acting}
-                className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50">
-                Accept
-              </button>
-              <button onClick={reject} disabled={acting}
-                className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
-                Reject
-              </button>
+              <Button className="!bg-signal-teal" onClick={accept} disabled={acting}>Accept</Button>
+              <Button variant="danger" onClick={reject} disabled={acting}>Reject</Button>
             </div>
-          </div>
+          </Card>
         )}
 
         {!isFinal && booking.status !== 'Pending' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-800 mb-3">Urgency</h3>
-            <div className="flex gap-2 mb-4">
+          <Card>
+            <h3 className="font-display font-semibold text-ink-900 mb-3">Urgency</h3>
+            <div className="flex gap-2 mb-6">
               {ALLOWED_URGENCY.map((u) => (
-                <button key={u} onClick={() => setUrgency(u)}
-                  className={`px-3 py-1 rounded text-sm ${booking.urgency === u ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                <button
+                  key={u}
+                  onClick={() => setUrgency(u)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    booking.urgency === u ? 'bg-ink-900 text-paper' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                  }`}
+                >
                   {u}
                 </button>
               ))}
             </div>
 
-            <h3 className="font-semibold text-gray-800 mb-3">Status</h3>
-            <div className="flex gap-2 mb-3 flex-wrap">
-              <button onClick={() => changeStatus('In Progress')} disabled={booking.status !== 'Accepted'}
-                className={`px-3 py-1 rounded text-sm ${booking.status === 'In Progress' ? 'bg-blue-600 text-white' : 'bg-gray-200'} disabled:opacity-40`}>
+            <h3 className="font-display font-semibold text-ink-900 mb-3">Status</h3>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <button
+                onClick={() => changeStatus('In Progress')}
+                disabled={booking.status !== 'Accepted'}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-40 ${
+                  booking.status === 'In Progress' ? 'bg-ink-900 text-paper' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                }`}
+              >
                 In Progress
               </button>
             </div>
-            <label className="block text-sm text-gray-600 mb-1">Resolution Note (required to complete)</label>
-            <textarea value={resolutionNote} onChange={(e) => setResolutionNote(e.target.value)}
-              rows="2" className="w-full mb-2 px-3 py-2 border rounded" placeholder="Describe the work done..." />
-            <button onClick={() => changeStatus('Completed')} disabled={booking.status !== 'In Progress'}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-40">
-              Mark Completed
-            </button>
-          </div>
+            <Textarea
+              label="Resolution note (required to complete)"
+              value={resolutionNote}
+              onChange={(e) => setResolutionNote(e.target.value)}
+              rows={2}
+              placeholder="Describe the work done…"
+              className="mb-3"
+            />
+            <Button
+              className="!bg-signal-teal"
+              onClick={() => changeStatus('Completed')}
+              disabled={booking.status !== 'In Progress'}
+            >
+              Mark completed
+            </Button>
+          </Card>
         )}
 
         {booking.status === 'Completed' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-800 mb-2">Resolution Note</h3>
-            <p className="text-sm text-gray-600 mb-4">{booking.resolutionNote || '—'}</p>
-            <h3 className="font-semibold text-gray-800 mb-2">Customer Review</h3>
+          <Card>
+            <h3 className="font-display font-semibold text-ink-900 mb-2">Resolution note</h3>
+            <p className="text-sm text-ink-600 mb-5">{booking.resolutionNote || '—'}</p>
+            <h3 className="font-display font-semibold text-ink-900 mb-2">Customer review</h3>
             {review ? (
               <div>
                 <div className="flex gap-1 mb-2">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <span key={n} className={n <= review.rating ? 'text-yellow-400 text-xl' : 'text-gray-300 text-xl'}>★</span>
+                    <span key={n} className={n <= review.rating ? 'text-signal-amber text-xl' : 'text-ink-200 text-xl'}>★</span>
                   ))}
                 </div>
-                {review.comment && <p className="text-sm text-gray-600">{review.comment}</p>}
+                {review.comment && <p className="text-sm text-ink-600">{review.comment}</p>}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No review submitted yet.</p>
+              <p className="text-sm text-ink-300">No review submitted yet.</p>
             )}
-          </div>
+          </Card>
         )}
 
         {booking.status === 'Rejected' && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <p className="text-sm text-gray-500">This booking was rejected.</p>
-          </div>
+          <Card>
+            <p className="text-sm text-ink-400">This booking was rejected.</p>
+          </Card>
         )}
       </div>
     </div>
