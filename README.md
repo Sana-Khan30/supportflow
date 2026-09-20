@@ -4,6 +4,9 @@ An AI-triaged customer support ticketing platform. Customers submit tickets in p
 
 A live, isolated demo mode lets anyone try both the customer and agent experience with one click — no signup required — without ever touching real customer data.
 
+**🔗 Live demo:** [supportflow-frontend-ikxu.onrender.com](https://supportflow-frontend-ikxu.onrender.com)
+*(Hosted on Render's free tier — the backend may take 30–50s to wake up on the first request after inactivity.)*
+
 ---
 
 ## What it does
@@ -36,6 +39,9 @@ A live, isolated demo mode lets anyone try both the customer and agent experienc
 - JSON Web Tokens + bcrypt (auth)
 - Google Gemini API (`@google/genai`) — AI ticket triage and auto-reply
 - express-rate-limit (abuse protection on auth routes)
+
+**Hosting**
+- Render (Web Service for the backend, Static Site for the frontend)
 
 ---
 
@@ -100,6 +106,13 @@ DEMO_LOGIN_ENABLED=true
 FRONTEND_URL=http://localhost:5173
 ```
 
+Create `frontend/.env` (for local dev only — on Render these are set as environment variables in the dashboard instead):
+
+```env
+VITE_API_URL=http://localhost:5000
+VITE_SOCKET_URL=http://localhost:5000
+```
+
 ### 3. Seed the demo accounts (optional, needed for demo login)
 
 ```bash
@@ -134,12 +147,27 @@ This boundary is enforced server-side (ticket queries, booking/agent-suggestion 
 
 ---
 
-## Deployment notes
+## Deployment (Render)
 
-- Target: [Vercel](https://vercel.com) (frontend and backend as separate projects).
-- Set all of the `.env` variables above in the backend project's environment settings — **`FRONTEND_URL` must match your deployed frontend's exact URL**, or CORS will silently reject authenticated requests.
-- Leave `DEMO_LOGIN_ENABLED` unset in any deployment meant to hold real customer data.
-- Socket.IO needs a persistent connection; Vercel's serverless functions are ephemeral, so real-time features may need a platform with long-lived processes (Render, Railway, a small VPS) if this moves beyond a demo deployment.
+The app is deployed as two separate Render services from the same GitHub repo:
+
+| Service | Type | Root directory | Build command | Start command |
+|---|---|---|---|---|
+| `supportflow-backend` | Web Service (Node) | `backend` | `npm install` | `node server.js` |
+| `supportflow-frontend` | Static Site | `frontend` | `npm install; npm run build` | — (publish directory: `dist`) |
+
+**Backend environment variables** (Render dashboard → service → Environment):
+`MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `DEMO_LOGIN_ENABLED`, and `FRONTEND_URL` (must exactly match the deployed frontend's URL, or CORS will silently reject authenticated requests).
+
+**Frontend environment variables**:
+`VITE_API_URL` and `VITE_SOCKET_URL`, both set to the backend's Render URL (no `/api` suffix — the app already appends `/api` itself). Vite bakes these in at build time, so changing them requires a manual redeploy, not just a save.
+
+**Static Site rewrite rule** (required for client-side routing — without it, refreshing on any route other than `/` returns a 404):
+Source `/*` → Destination `/index.html` → Action `Rewrite`.
+
+**MongoDB Atlas users**: whitelist `0.0.0.0/0` in Network Access, or Render's outbound requests will be refused.
+
+**Free tier note**: Render's free web services spin down after inactivity — the first request after a while can take 30–50s, and an idle Socket.IO connection may drop and need to reconnect.
 
 ---
 
