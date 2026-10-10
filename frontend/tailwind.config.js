@@ -38,8 +38,17 @@ export default {
         sans: ["'Inter'", "sans-serif"],
         mono: ["'IBM Plex Mono'", "monospace"],
       },
+      borderRadius: {
+        card: "10px",
+        control: "8px",
+      },
       boxShadow: {
         stub: "2px 2px 0 0 rgba(23,27,33,0.08)",
+        // Real elevation scale: resting cards use no shadow (border only, see
+        // Card.jsx), raised = hover, overlay = dropdowns/modals. One
+        // direction, one light source — not a glow ring.
+        raised: "0 4px 16px -4px rgba(21,20,26,0.10), 0 1px 3px rgba(21,20,26,0.06)",
+        overlay: "0 16px 40px -8px rgba(21,20,26,0.18), 0 2px 8px rgba(21,20,26,0.08)",
       },
     },
   },

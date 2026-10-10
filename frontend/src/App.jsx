@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
@@ -15,12 +15,6 @@ import AgentBookingDetail from "./pages/AgentBookingDetail";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import Landing from "./pages/Landing";
 
-const Home = () => {
-  const { user } = useAuth();
-  if (!user) return <Landing />;
-  return <Navigate to={user.role === "agent" ? "/agent" : "/customer"} />;
-};
-
 function App() {
   return (
     <AuthProvider>
@@ -29,18 +23,19 @@ function App() {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#171B21',
-              color: '#F4F3EF',
-              fontSize: '14px',
-              borderRadius: '8px',
+              background: '#0F172A',
+              color: '#F8FAFC',
+              fontSize: '13px',
+              borderRadius: '12px',
+              border: '1px solid #334155'
             },
-            success: { iconTheme: { primary: '#3D7A68', secondary: '#F4F3EF' } },
-            error: { iconTheme: { primary: '#BF4A3D', secondary: '#F4F3EF' } },
+            success: { iconTheme: { primary: '#10B981', secondary: '#0F172A' } },
+            error: { iconTheme: { primary: '#EF4444', secondary: '#0F172A' } },
           }}
         />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Landing />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />

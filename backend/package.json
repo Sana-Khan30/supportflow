@@ -1,11 +1,13 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "SupportFlow Backend API & Intelligence Engine",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test_suite.js",
+    "seed": "node src/utils/seedDemoUsers.js"
   },
   "keywords": [],
   "author": "",

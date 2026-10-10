@@ -5,33 +5,47 @@ let io = null;
 
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
-    cors: { origin: '*' }
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST'],
+      credentials: true
+    },
+    transports: ['websocket', 'polling']
   });
 
-  // Authenticate every socket connection using the same JWT used for REST auth
+  // Gracefully authenticate socket connection
   io.use((socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
-      if (!token) return next(new Error('No token provided'));
+      if (!token || token === 'null' || token === 'undefined') {
+        socket.userId = null;
+        socket.userRole = 'guest';
+        socket.userIsDemo = false;
+        return next();
+      }
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.id;
       socket.userRole = decoded.role;
       socket.userIsDemo = !!decoded.isDemo;
       next();
     } catch (err) {
-      next(new Error('Invalid token'));
+      // Degrade to guest instead of rejecting handshake
+      socket.userId = null;
+      socket.userRole = 'guest';
+      socket.userIsDemo = false;
+      next();
     }
   });
 
   io.on('connection', (socket) => {
-    // Personal room — used for notifications & cross-tab updates
-    socket.join(`user:${socket.userId}`);
+    if (socket.userId) {
+      // Personal room — used for notifications & updates
+      socket.join(`user:${socket.userId}`);
 
-    // Agents join a room scoped to their own demo/real world, so a fresh
-    // ticket broadcast never reaches an agent on the wrong side of the
-    // demo/real boundary.
-    if (socket.userRole === 'agent') {
-      socket.join(socket.userIsDemo ? 'agents:demo' : 'agents:real');
+      // Agents room scoped to demo/real
+      if (socket.userRole === 'agent') {
+        socket.join(socket.userIsDemo ? 'agents:demo' : 'agents:real');
+      }
     }
 
     socket.on('ticket:join', (ticketId) => {
@@ -56,20 +70,16 @@ const initSocket = (httpServer) => {
 
 const getIO = () => io;
 
-// Broadcasts an event + payload to everyone currently viewing a ticket
 const broadcastToTicket = (ticketId, event, payload) => {
   if (!io) return;
   io.to(`ticket:${ticketId}`).emit(event, payload);
 };
 
-// Broadcasts an event + payload to every connected agent (e.g. a fresh ticket landing).
-// isDemo picks which world's agents receive it — pass the ticket's own isDemo flag.
 const broadcastToAgents = (event, payload, isDemo = false) => {
   if (!io) return;
   io.to(isDemo ? 'agents:demo' : 'agents:real').emit(event, payload);
 };
 
-// Pushes an already-created notification document live to the target user, if online
 const notifyUser = (userId, notification) => {
   if (!io || !userId) return;
   io.to(`user:${userId}`).emit('notification:new', notification);

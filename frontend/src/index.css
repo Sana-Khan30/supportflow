@@ -34,6 +34,26 @@
   animation: dashFlow 0.8s linear infinite;
 }
 
+/* Premium skeleton shimmer — slow, subtle, not a flashy sweep */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #EAE8E5 25%, #F3F1EC 37%, #EAE8E5 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* AI panel "reading the ticket" sweep — a single slow line, not a spinner */
+@keyframes aiSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.ai-sweep {
+  animation: aiSweep 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

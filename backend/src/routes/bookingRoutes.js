@@ -2,11 +2,14 @@ const express = require('express');
 const router = express.Router();
 const {
   createBooking, getMyBookings, getAssignedBookings,
-  getSuggestedAgents, getBookingById,
+  getSuggestedAgents, getBookingById, getProviders,
   acceptBooking, rejectBooking, setUrgency, updateStatus
 } = require('../controllers/bookingController');
 const { createReview, getMyReviews, getReviewForBooking } = require('../controllers/reviewController');
 const { protect, authorize } = require('../middleware/auth');
+
+// Public or customer marketplace browsing of verified service specialists
+router.get('/providers', getProviders);
 
 router.post('/', protect, authorize('customer'), createBooking);
 router.get('/my', protect, authorize('customer'), getMyBookings);

@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 const SocketContext = createContext(null);
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:5000'
     : window.location.origin);
 
@@ -37,9 +37,6 @@ export const SocketProvider = ({ children }) => {
 
     s.on('connect', () => {
       setIsConnected(true);
-      // Note: no client emit needed here — the backend auto-joins this socket
-      // to its personal room (`user:${socket.userId}`) using the JWT payload
-      // as soon as the connection is authenticated (see sockets/index.js).
     });
 
     s.on('disconnect', () => {
@@ -47,7 +44,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     s.on('connect_error', (err) => {
-      console.warn('Socket.io connection error:', err.message);
+      console.warn('Socket.io sync status:', err.message);
       setIsConnected(false);
     });
 
@@ -62,8 +59,6 @@ export const SocketProvider = ({ children }) => {
     };
   }, [user]);
 
-  // Backend listens for 'ticket:join' / 'ticket:leave' with a plain ticketId string
-  // (see sockets/index.js) — must match exactly, no wrapper object.
   const joinTicket = useCallback((ticketId) => {
     if (socketRef.current && ticketId) {
       socketRef.current.emit('ticket:join', ticketId);

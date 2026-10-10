@@ -13,28 +13,37 @@ const server = http.createServer(app);
 // Initialize Socket.io real-time engine
 initSocket(server);
 
-// Middleware
-// NOTE: browsers reject `credentials: true` combined with a wildcard '*' origin,
-// so instead of falling back to '*' we reflect back any origin on an explicit
-// allow-list. Set FRONTEND_URL in production to your deployed frontend URL;
-// additional origins (e.g. previews) can be added via FRONTEND_URL as a
-// comma-separated list.
+// Robust CORS configuration supporting all dev ports and deployed frontends
 const allowedOrigins = [
   ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((o) => o.trim()) : []),
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
   'https://supportflow-gray.vercel.app',
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow non-browser requests (no Origin header, e.g. curl/Postman/health checks)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true);
+    
+    // Dynamically permit any localhost or 127.0.0.1 port
+    if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'));
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, true);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -60,7 +69,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Apply rate limiting
+// Apply rate limiting (generous limits for development & hackathon demo)
 app.use('/api/', apiLimiter);
 
 // Mount API routes

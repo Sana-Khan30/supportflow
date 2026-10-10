@@ -5,22 +5,20 @@ const User = require('../models/User');
 
 const STATUSES = ['New', 'Assigned', 'In Progress', 'Resolved'];
 const PRIORITIES = ['Low', 'Medium', 'High'];
+const SENTIMENTS = ['Frustrated', 'Neutral', 'Positive', 'Urgent'];
 
 exports.getOverview = async (req, res) => {
   if (req.user.role !== 'agent') {
     return res.status(403).json({ message: 'Forbidden: agents only' });
   }
 
-  // Everything below is scoped to the requesting agent's own demo/real world,
-  // so a demo agent only ever sees sandbox numbers and a real agent only
-  // ever sees real business metrics — neither pollutes the other.
   const demoScope = !!req.user.isDemo;
 
   const agents = await User.find({ role: 'agent', isDemo: demoScope }).select('name _id');
   const agentIds = agents.map((a) => a._id.toString());
 
   const [tickets, reviews] = await Promise.all([
-    Ticket.find({ isDemo: demoScope }).select('status priority category createdAt resolvedAt agent'),
+    Ticket.find({ isDemo: demoScope }).select('status priority category sentiment urgencyScore createdAt resolvedAt slaDeadline agent'),
     Review.find({ agent: { $in: agentIds } }).select('agent rating')
   ]);
 
@@ -32,6 +30,11 @@ exports.getOverview = async (req, res) => {
   const byPriority = PRIORITIES.map((p) => ({
     name: p,
     value: tickets.filter((t) => t.priority === p).length
+  }));
+
+  const bySentiment = SENTIMENTS.map((s) => ({
+    name: s,
+    value: tickets.filter((t) => (t.sentiment || 'Neutral') === s).length
   }));
 
   const categoryCounts = {};
@@ -51,7 +54,35 @@ exports.getOverview = async (req, res) => {
       (1000 * 60 * 60)
     : null;
 
-  // Tickets created per day, last 14 days — trend chart
+  // SLA Compliance Calculation
+  const now = new Date();
+  let slaCompliant = 0;
+  let slaBreached = 0;
+
+  tickets.forEach((t) => {
+    if (t.slaDeadline) {
+      if (t.status === 'Resolved') {
+        if (new Date(t.resolvedAt) <= new Date(t.slaDeadline)) {
+          slaCompliant++;
+        } else {
+          slaBreached++;
+        }
+      } else {
+        if (now <= new Date(t.slaDeadline)) {
+          slaCompliant++;
+        } else {
+          slaBreached++;
+        }
+      }
+    } else {
+      slaCompliant++;
+    }
+  });
+
+  const totalSlaTracked = slaCompliant + slaBreached;
+  const slaAdherenceRate = totalSlaTracked > 0 ? Math.round((slaCompliant / totalSlaTracked) * 100) : 100;
+
+  // Tickets created per day, last 14 days
   const days = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date();
@@ -69,7 +100,7 @@ exports.getOverview = async (req, res) => {
     return { date: d.toISOString().slice(5, 10), value: count };
   });
 
-  // Per-agent leaderboard: resolved count + average rating (agents list already scoped above)
+  // Per-agent leaderboard
   const agentStats = agents.map((a) => {
     const resolvedByAgent = tickets.filter(
       (t) => t.status === 'Resolved' && t.agent && t.agent.toString() === a._id.toString()
@@ -89,10 +120,13 @@ exports.getOverview = async (req, res) => {
       avgResolutionHours: avgResolutionHours !== null ? Math.round(avgResolutionHours * 10) / 10 : null,
       avgRating: reviews.length
         ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10
-        : null
+        : null,
+      slaAdherenceRate,
+      slaBreached
     },
     byStatus,
     byPriority,
+    bySentiment,
     byCategory,
     ticketsPerDay,
     agentStats

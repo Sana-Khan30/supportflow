@@ -1,197 +1,177 @@
-import { useRef } from "react";
-import { Link } from "react-router-dom";
-import { motion, useInView } from "framer-motion";
-import { Inbox, Sparkles, MessageCircle, Star, Zap, ListOrdered, CalendarCheck } from "lucide-react";
-import Button from "../components/ui/Button";
-import Logo from "../components/ui/Logo";
-import HeroDemo from "../components/HeroDemo";
-
-const STEPS = [
-  {
-    icon: Inbox,
-    title: "A ticket comes in",
-    body: "A customer describes their issue in plain language — no forms to fill out first.",
-  },
-  {
-    icon: Sparkles,
-    title: "AI triages it instantly",
-    body: "Category, priority, and a one-line summary are attached before an agent ever opens it.",
-  },
-  {
-    icon: MessageCircle,
-    title: "An agent replies from the queue",
-    body: "The most urgent tickets sit at the top, so nothing important waits behind something small.",
-  },
-  {
-    icon: Star,
-    title: "The customer rates the fix",
-    body: "Once it's resolved, a quick rating closes the loop and feeds your team's track record.",
-  },
-];
-
-const FEATURES = [
-  {
-    icon: Zap,
-    title: "AI triage on arrival",
-    body: "Every new ticket is read, categorized, and prioritized the moment it lands — before an agent even opens it.",
-  },
-  {
-    icon: ListOrdered,
-    title: "One queue, no guessing",
-    body: "Agents see what's urgent first. Customers see exactly where their ticket stands, always.",
-  },
-  {
-    icon: CalendarCheck,
-    title: "Booking & resolution tracking",
-    body: "Turn a ticket into a scheduled session with an agent, and close the loop with a review.",
-  },
-];
-
-// One choreographed entrance for the hero column — not per-element scatter.
-const heroContainer = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.12, delayChildren: 0.08 } },
-};
-const heroItem = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
-};
-
-const FlowLine = () => {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <div ref={ref} className="hidden lg:block absolute top-9 left-[12.5%] right-[12.5%] h-px overflow-hidden">
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={inView ? { scaleX: 1 } : {}}
-        transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
-        style={{ transformOrigin: "left" }}
-        className="flow-line w-full h-full"
-      />
-    </div>
-  );
-};
+import React from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Sparkles, MessageSquare, Headphones, ShieldCheck,
+  Calendar, CheckCircle2, ArrowRight, Star, RefreshCw,
+  Flower2, Droplets, Zap, Hammer, Sparkle, Paintbrush, Wind
+} from 'lucide-react';
+import Button from '../components/ui/Button';
+import Logo from '../components/ui/Logo';
+import ServiceMarketplace from '../components/ServiceMarketplace';
+import { useAuth } from '../context/AuthContext';
 
 const Landing = () => {
-  return (
-    <div className="min-h-screen bg-paper">
-      {/* Light band: nav + hero — matches the dashboard's own paper/white palette */}
-      <div className="relative bg-paper border-b border-ink-100 overflow-hidden">
-        {/* Faint console grid texture — restrained, purely atmospheric */}
-        <div
-          className="absolute inset-0 opacity-[0.035] pointer-events-none"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, #0A0A0B 1px, transparent 1px), linear-gradient(to bottom, #0A0A0B 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
-          }}
-        />
-        {/* Single ambient glow anchoring the live-demo panel */}
-        <div className="absolute -right-24 top-24 w-[520px] h-[520px] bg-signal-coral/10 rounded-full blur-[120px] pointer-events-none" />
+  const [searchParams] = useSearchParams();
+  const { user, demoLogin } = useAuth();
+  const navigate = useNavigate();
 
-        <nav className="relative flex items-center justify-between px-6 sm:px-8 py-5 max-w-6xl mx-auto">
-          <Logo />
+  const handleDemoCustomer = async () => {
+    try {
+      await demoLogin('customer');
+      navigate('/customer');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDemoAgent = async () => {
+    try {
+      await demoLogin('agent');
+      navigate('/agent');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-ink-900">
+      {/* Top Header Dark Surface */}
+      <div className="bg-slate-950 text-white border-b border-slate-800">
+        <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
           <div className="flex items-center gap-3">
-            <Link to="/login" className="text-sm font-medium text-ink-500 hover:text-ink-900 transition-colors">
-              Log in
-            </Link>
-            <Link to="/register">
-              <Button variant="accent" size="sm">Get started</Button>
-            </Link>
+            <Logo dark />
+            <span className="hidden sm:inline-block text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              AI Support & Service Ops
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {user ? (
+              <Link to={user.role === 'agent' ? '/agent' : '/customer'}>
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                  Open Workspace →
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <button
+                  onClick={handleDemoCustomer}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700 cursor-pointer"
+                >
+                  <span>Demo Customer</span>
+                </button>
+
+                <button
+                  onClick={handleDemoAgent}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 cursor-pointer"
+                >
+                  <Headphones size={12} />
+                  <span>Demo Specialist Desk</span>
+                </button>
+
+                <Link to="/login" className="text-xs font-medium text-slate-300 hover:text-white px-2">
+                  Log in
+                </Link>
+                <Link to="/register">
+                  <Button size="sm" variant="light">Get Started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </nav>
 
-        <header className="relative max-w-6xl mx-auto px-6 sm:px-8 pt-10 pb-24 grid lg:grid-cols-2 gap-14 items-center">
-          <motion.div variants={heroContainer} initial="hidden" animate="show">
-            <motion.p variants={heroItem} className="font-mono text-xs text-ink-400 mb-4">
-              a support desk that reads its own mail
-            </motion.p>
-            <motion.h1
-              variants={heroItem}
-              className="font-display text-4xl sm:text-5xl font-bold text-ink-900 leading-tight mb-5"
-            >
-              Support tickets that route themselves.
-            </motion.h1>
-            <motion.p variants={heroItem} className="text-lg text-ink-500 mb-8 max-w-md">
-              SupportFlow reads every incoming ticket, works out what it is and how urgent it is,
-              and hands your team a queue that's already sorted. Watch it happen on the right.
-            </motion.p>
-            <motion.div variants={heroItem} className="flex flex-wrap items-center gap-3 mb-6">
-              <Link to="/register">
-                <Button variant="accent" size="lg">Create an account</Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="outline" size="lg">Log in</Button>
-              </Link>
-            </motion.div>
-            <motion.p variants={heroItem} className="text-sm text-ink-400">
-              Nothing to set up first —{" "}
-              <Link to="/login" className="text-ink-700 underline underline-offset-2 hover:text-ink-900 transition-colors">
-                try it instantly as a customer or an agent
-              </Link>
-              .
-            </motion.p>
-          </motion.div>
+        {/* Hero Section */}
+        <header className="max-w-6xl mx-auto px-6 pt-10 pb-16 text-center space-y-5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-amber-300 font-mono shadow-xs">
+            <Sparkles size={13} />
+            <span>AI Complaint Triage • Guaranteed Service Bookings • Human-Supervised Resolution</span>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="flex justify-center lg:justify-end"
-          >
-            <HeroDemo />
-          </motion.div>
+          <h1 className="font-display text-3xl sm:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto leading-tight">
+            Book local verified specialists with{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">
+              AI-guaranteed dispute resolution.
+            </span>
+          </h1>
+
+          <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-sans">
+            Schedule appointments for gardening, plumbing, electrical, carpentry, AC repair and more. If anything goes wrong, our real-time multi-dimensional AI triage automatically classifies, routes, and supervises fast resolution.
+          </p>
+
+          {/* 1-Click Persona CTA Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={handleDemoCustomer}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono shadow-lg hover:shadow-emerald-600/30 transition-all cursor-pointer"
+            >
+              <span>Explore as Customer 👤</span>
+              <ArrowRight size={14} />
+            </button>
+
+            <button
+              onClick={handleDemoAgent}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs font-mono border border-slate-700 shadow-lg transition-all cursor-pointer"
+            >
+              <Headphones size={14} />
+              <span>Launch 3-Pane Specialist Desk 🎧</span>
+            </button>
+          </div>
         </header>
       </div>
 
-      {/* How it works — the sequence this product actually follows */}
-      <section className="max-w-6xl mx-auto px-6 sm:px-8 py-20">
-        <h2 className="font-display text-2xl font-bold text-ink-900 mb-2">How a ticket moves through SupportFlow</h2>
-        <p className="text-ink-500 mb-12 max-w-lg">Four steps, start to finish — the same path every ticket takes.</p>
+      {/* Main Content Area: Interactive Live Marketplace */}
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-12">
+        <ServiceMarketplace initialCategory={searchParams.get('category') || 'All'} />
 
-        <div className="relative grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Connecting line, desktop only — draws itself in once scrolled into view */}
-          <FlowLine />
+        {/* Feature Highlights Banner */}
+        <section className="bg-white border border-ink-100 rounded-2xl p-6 sm:p-8 shadow-2xs grid sm:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+              <ShieldCheck size={18} />
+            </div>
+            <h3 className="font-display font-bold text-ink-900 text-sm">
+              Verified Craftsmen & Fixed Rates
+            </h3>
+            <p className="text-xs text-ink-500 font-sans leading-relaxed">
+              Every provider is vetted for skill accreditation, customer ratings, and transparent hourly pricing with zero hidden fees.
+            </p>
+          </div>
 
-          {STEPS.map((step, i) => {
-            const Icon = step.icon;
-            return (
-              <div key={step.title} className="relative bg-white border border-ink-100 rounded-lg p-5">
-                <div className="w-9 h-9 rounded-full bg-ink-900 text-paper flex items-center justify-center mb-4 relative z-10">
-                  <Icon size={16} />
-                </div>
-                <p className="font-mono text-[11px] text-ink-400 mb-1">Step {i + 1}</p>
-                <h3 className="font-display font-semibold text-ink-900 mb-1.5">{step.title}</h3>
-                <p className="text-sm text-ink-500 leading-relaxed">{step.body}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+          <div className="space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+              <Sparkles size={18} />
+            </div>
+            <h3 className="font-display font-bold text-ink-900 text-sm">
+              AI Multi-Dimensional Triage
+            </h3>
+            <p className="text-xs text-ink-500 font-sans leading-relaxed">
+              Complaint tickets analyze sentiment, intent, SLA risk, and duplicate incidents instantly on submission.
+            </p>
+          </div>
 
-      {/* Feature summary — styled as console readouts to match the dispatch motif */}
-      <section className="bg-paper-dim">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-20 grid sm:grid-cols-3 gap-8">
-          {FEATURES.map((f) => {
-            const Icon = f.icon;
-            return (
-              <div key={f.title}>
-                <div className="w-9 h-9 rounded-md border border-ink-200 bg-white flex items-center justify-center mb-4">
-                  <Icon size={16} className="text-ink-700" />
-                </div>
-                <h3 className="font-display font-semibold text-ink-900 mb-2">{f.title}</h3>
-                <p className="text-sm text-ink-500 leading-relaxed">{f.body}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+          <div className="space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <Headphones size={18} />
+            </div>
+            <h3 className="font-display font-bold text-ink-900 text-sm">
+              Human-Supervised Resolution Desk
+            </h3>
+            <p className="text-xs text-ink-500 font-sans leading-relaxed">
+              Specialists manage queues with dynamic countdown timers, grounded knowledge runbooks, and auditable history.
+            </p>
+          </div>
+        </section>
+      </main>
 
-      <footer className="bg-white border-t border-ink-100">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <Logo size="sm" />
-          <p className="text-sm text-ink-500">SupportFlow — built for teams who don't want to triage manually.</p>
+      {/* Footer */}
+      <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 py-8 px-6 text-xs text-center font-mono">
+        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4">
+          <Logo dark size="sm" />
+          <p>© 2026 SupportFlow • Intelligent Service Marketplace & AI Resolution Command Center</p>
+          <div className="flex items-center gap-4">
+            <button onClick={handleDemoCustomer} className="hover:text-white cursor-pointer">Demo Customer</button>
+            <button onClick={handleDemoAgent} className="hover:text-white cursor-pointer">Demo Specialist</button>
+          </div>
         </div>
       </footer>
     </div>

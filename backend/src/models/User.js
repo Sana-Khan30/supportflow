@@ -7,9 +7,21 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ['customer', 'agent'], default: 'customer' },
   skills: { type: [String], default: [] },
-  // Marks the two fixed portfolio-demo accounts. Used everywhere to keep the
-  // demo sandbox (tickets, agents, bookings, analytics) fully isolated from
-  // real customer/agent data — never mixed in either direction.
+  
+  // Provider / Craftsman Marketplace Fields
+  businessName: { type: String, default: '' },
+  category: { type: String, default: 'General' }, // Gardening, Plumbing, Electrical, Carpentry, Cleaning, Painting, AC Repair
+  hourlyRate: { type: Number, default: 1500 },
+  location: { type: String, default: 'Lahore, Pakistan' },
+  bio: { type: String, default: 'Certified professional craftsman delivering quality home services with precision.' },
+  rating: { type: Number, default: 4.9 },
+  reviewCount: { type: Number, default: 12 },
+  available: { type: Boolean, default: true },
+  experienceYears: { type: Number, default: 5 },
+  specialties: [{ type: String }],
+  avatar: { type: String, default: '' },
+
+  // Demo account isolation flag
   isDemo: { type: Boolean, default: false }
 }, { timestamps: true });
 
